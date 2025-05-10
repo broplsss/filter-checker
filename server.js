@@ -15,15 +15,15 @@ const lightspeedCategoryNumbers = [
   79, 83, 84, 85, 99, 129, 131, 132, 139, 140, 900,
 ]
 
-const fortiguardCategoryNumbers = [
-  0, 9, 28, 29, 30, 31, 33, 34, 35, 36, 39, 40, 41, 42, 43, 44, 46, 47, 49, 50, 51, 52, 53, 63, 75, 76, 77, 78, 79, 80,
-  81, 82, 84, 92,
-]
-
 const lightspeedCategoriesPath = path.join(__dirname, "./public/lightspeed-categories.json")
 const lightspeedCategories = JSON.parse(fs.readFileSync(lightspeedCategoriesPath, "utf8"))
 
-async function fetchCategorization(url) {
+function getRootDomain(hostname) {
+  const parts = hostname.split(".")
+  return parts.slice(-2).join(".")
+}
+
+async function fetchCategorization(hostname) {
   try {
     const response = await fetch("https://production-archive-proxy-api.lightspeedsystems.com/archiveproxy", {
       method: "POST",
@@ -36,7 +36,7 @@ async function fetchCategorization(url) {
         "user-agent": "Mozilla/5.0",
         "x-api-key": "onEkoztnFpTi3VG7XQEq6skQWN3aFm3h",
       },
-      body: `{"query":"\\nquery getDeviceCategorization($itemA: CustomHostLookupInput!, $itemB: CustomHostLookupInput!){\\n  a: custom_HostLookup(item: $itemA) { cat}\\n  b: custom_HostLookup(item: $itemB) { cat   \\n  }\\n}","variables":{"itemA":{"hostname":"${url}"}, "itemB":{"hostname":"${url}"}}}`,
+      body: `{"query":"\\nquery getDeviceCategorization($itemA: CustomHostLookupInput!, $itemB: CustomHostLookupInput!){\\n  a: custom_HostLookup(item: $itemA) { cat}\\n  b: custom_HostLookup(item: $itemB) { cat   \\n  }\\n}","variables":{"itemA":{"hostname":"${hostname}"}, "itemB":{"hostname":"${hostname}"}}}`,
     })
 
     if (!response.ok) {
@@ -68,78 +68,10 @@ async function fetchCategorization(url) {
   }
 }
 
-async function fetchFortiGuard(url) {
-  try {
-    console.log(`Fetching FortiGuard data for: ${url}`)
-
-    const response = await fetch("https://www.fortiguard.com/learnmore/dns", {
-      method: "POST",
-      headers: {
-        Accept: "*/*",
-        "Accept-Language": "en-US,en;q=0.9",
-        Authority: "www.fortiguard.com",
-        "Content-Type": "application/json;charset=UTF-8",
-        Cookie: "cookiesession1=678A3E0F33B3CB9D7BEECD2B8A5DD036; privacy_agreement=true",
-        Origin: "https://www.fortiguard.com",
-        Referer: "https://www.fortiguard.com/services/sdns",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
-      body: JSON.stringify({ value: url, version: 9 }),
-    })
-
-    const result = await response.json()
-
-    console.log("FortiGuard API Response:", result)
-
-    if (result.dns) {
-      const { rating, categoryname } = result.dns
-
-      console.log(`Rating Type: ${typeof rating}`)
-      console.log(`Rating Value: ${rating}`)
-      console.log(`Category Name: ${categoryname}`)
-
-      const ratingNumber = Number.parseInt(rating, 10)
-      console.log(`Parsed Rating Number: ${ratingNumber}`)
-
-      console.log(`FortiGuard category numbers: ${fortiguardCategoryNumbers}`)
-
-      const isUnblocked = fortiguardCategoryNumbers.includes(ratingNumber)
-
-      return {
-        status: isUnblocked ? "Unblocked" : "Blocked",
-        category: categoryname || "Unknown",
-        rating: ratingNumber,
-      }
-    } else {
-      console.log(`No DNS data found for ${url}`)
-      return {
-        status: "Unknown",
-        category: "Unknown",
-        rating: null,
-      }
-    }
-  } catch (error) {
-    console.error("Error fetching FortiGuard data:", error)
-    return {
-      status: "Error",
-      category: "Error",
-      rating: null,
-    }
-  }
-}
-
 app.post("/check-links", async (req, res) => {
-  const { urls, filters } = req.body
+  const { urls } = req.body
   if (!Array.isArray(urls) || urls.length === 0) {
     return res.status(400).json({ error: "Invalid input: 'urls' must be a non-empty array." })
-  }
-
-  const checkLightspeed = filters?.lightspeed !== false
-  const checkFortiGuard = filters?.fortiguard !== false
-
-  if (!checkLightspeed && !checkFortiGuard) {
-    return res.status(400).json({ error: "At least one filter must be selected." })
   }
 
   progress.completed = 0
@@ -147,77 +79,44 @@ app.post("/check-links", async (req, res) => {
 
   const domainResults = []
 
-  for (const url of urls) {
-    const cleanUrl = url.trim()
-    console.log(`Processing URL: ${cleanUrl}`)
+  for (const fullUrl of urls) {
+    let hostname
+    try {
+      hostname = new URL(fullUrl).hostname
+    } catch (err) {
+      console.error(`Invalid URL skipped: ${fullUrl}`)
+      continue
+    }
+
+    // If you want to use root domains only, uncomment:
+    // hostname = getRootDomain(hostname)
+
+    const domainResult = {
+      url: fullUrl,
+      hostname,
+      lightspeed: {
+        status: "Not Checked",
+        category: "Not Checked",
+      },
+    }
 
     try {
-      const domainResult = {
-        url: cleanUrl,
-        lightspeed: {
-          status: "Not Checked",
-          category: "Not Checked",
-        },
-        fortiguard: {
-          status: "Not Checked",
-          category: "Not Checked",
-        },
+      const lightspeedData = await fetchCategorization(hostname)
+      domainResult.lightspeed = {
+        status: lightspeedData.status,
+        category: lightspeedData.categoryName,
       }
-
-      if (checkLightspeed) {
-        console.log(`Checking Lightspeed for: ${cleanUrl}`)
-        try {
-          const lightspeedData = await fetchCategorization(cleanUrl)
-          domainResult.lightspeed = {
-            status: lightspeedData.status,
-            category: lightspeedData.categoryName,
-          }
-        } catch (lightspeedError) {
-          console.error(`Error checking Lightspeed for ${cleanUrl}:`, lightspeedError)
-          domainResult.lightspeed = {
-            status: "Error",
-            category: "Error",
-          }
-        }
+    } catch (err) {
+      console.error(`Lightspeed error for ${hostname}:`, err)
+      domainResult.lightspeed = {
+        status: "Error",
+        category: "Error",
       }
-
-      if (checkFortiGuard) {
-        console.log(`Checking FortiGuard for: ${cleanUrl}`)
-        try {
-          const fortiguardData = await fetchFortiGuard(cleanUrl)
-          domainResult.fortiguard = {
-            status: fortiguardData.status,
-            category: fortiguardData.category,
-          }
-        } catch (fortiguardError) {
-          console.error(`Error checking FortiGuard for ${cleanUrl}:`, fortiguardError)
-          domainResult.fortiguard = {
-            status: "Error",
-            category: "Error",
-          }
-        }
-      }
-
-      domainResults.push(domainResult)
-    } catch (error) {
-      console.error(`Error processing ${cleanUrl}:`, error)
-      domainResults.push({
-        url: cleanUrl,
-        lightspeed: {
-          status: checkLightspeed ? "Error" : "Not Checked",
-          category: checkLightspeed ? "Error" : "Not Checked",
-        },
-        fortiguard: {
-          status: checkFortiGuard ? "Error" : "Not Checked",
-          category: checkFortiGuard ? "Error" : "Not Checked",
-        },
-      })
-    } finally {
-      progress.completed++
     }
-  }
 
-  console.log("Final Results:", domainResults)
+    domainResults.push(domainResult)
+    progress.completed++
+  }
 
   res.json({
     domains: domainResults,
@@ -243,4 +142,3 @@ app.get("/progress", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
 })
-
