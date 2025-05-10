@@ -2,6 +2,8 @@ const express = require("express")
 const fetch = require("node-fetch")
 const fs = require("fs")
 const path = require("path")
+const psl = require("psl")
+
 const app = express()
 const PORT = 8080
 
@@ -17,11 +19,6 @@ const lightspeedCategoryNumbers = [
 
 const lightspeedCategoriesPath = path.join(__dirname, "./public/lightspeed-categories.json")
 const lightspeedCategories = JSON.parse(fs.readFileSync(lightspeedCategoriesPath, "utf8"))
-
-function getRootDomain(hostname) {
-  const parts = hostname.split(".")
-  return parts.slice(-2).join(".")
-}
 
 async function fetchCategorization(hostname) {
   try {
@@ -80,20 +77,27 @@ app.post("/check-links", async (req, res) => {
   const domainResults = []
 
   for (const fullUrl of urls) {
-    let hostname
+    let hostname, rootDomain
     try {
       hostname = new URL(fullUrl).hostname
+      const parsed = psl.parse(hostname)
+      rootDomain = parsed.domain
+
+      if (!rootDomain) {
+        console.warn(`Could not extract root domain from ${hostname}`)
+        continue
+      }
     } catch (err) {
-      console.error(`Invalid URL skipped: ${fullUrl}`)
+      console.error(`Invalid URL skipped: ${fullUrl}`, err)
       continue
     }
 
-    // If you want to use root domains only, uncomment:
-    // hostname = getRootDomain(hostname)
+    console.log(`Checking root domain: ${rootDomain} (from ${fullUrl})`)
 
     const domainResult = {
       url: fullUrl,
       hostname,
+      rootDomain,
       lightspeed: {
         status: "Not Checked",
         category: "Not Checked",
@@ -101,13 +105,13 @@ app.post("/check-links", async (req, res) => {
     }
 
     try {
-      const lightspeedData = await fetchCategorization(hostname)
+      const lightspeedData = await fetchCategorization(rootDomain)
       domainResult.lightspeed = {
         status: lightspeedData.status,
         category: lightspeedData.categoryName,
       }
     } catch (err) {
-      console.error(`Lightspeed error for ${hostname}:`, err)
+      console.error(`Lightspeed error for ${rootDomain}:`, err)
       domainResult.lightspeed = {
         status: "Error",
         category: "Error",
@@ -118,9 +122,7 @@ app.post("/check-links", async (req, res) => {
     progress.completed++
   }
 
-  res.json({
-    domains: domainResults,
-  })
+  res.json({ domains: domainResults })
 })
 
 app.get("/progress", (req, res) => {
