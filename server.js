@@ -148,7 +148,7 @@ app.post("/check-links", async (req, res) => {
   const domainResults = []
 
   for (const url of urls) {
-    const cleanUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+    const cleanUrl = url.trim()
     console.log(`Processing URL: ${cleanUrl}`)
 
     try {
