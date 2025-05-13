@@ -160,4 +160,24 @@ app.get("/progress", (req, res) => {
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  app.use(express.json()); // Make sure this is at the top
+
+app.post("/check-links", async (req, res) => {
+  const { urls } = req.body;
+
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return res.status(400).json({ error: "Invalid input: 'urls' must be a non-empty array." });
+  }
+
+  const results = urls.map(url => ({
+    url,
+    lightspeed: {
+      status: "Unblocked",
+      category: "Test Category"
+    }
+  }));
+
+  res.json({ domains: results });
+});
+
 });
