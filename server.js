@@ -108,19 +108,17 @@ app.post("/check-links", async (req, res) => {
     const domainResult = {
       url: fullUrl,
       hostname,
-      rootDomain,
-      lightspeed: {
-        status: "Not Checked",
-        category: "Not Checked",
-      },
+      categorization: await fetchCategorization(rootDomain),
     };
 
-    try {
-      const lightspeedData = await fetchCategorization(rootDomain);
-      domainResult.lightspeed = {
-        status: lightspeedData.status,
-        category: lightspeedData.categoryName,
-      };
-    } catch (err) {
-      console.error(`Lightspeed error for ${rootDomain}:`, err);
+    domainResults.push(domainResult);
+    progress.completed += 1;
+  }
 
+  res.json({ domains: domainResults });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
