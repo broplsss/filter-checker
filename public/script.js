@@ -7,10 +7,9 @@ async function checkLinks() {
 
   // Get filter selections
   const checkLightspeed = document.getElementById("lightspeedFilter").checked
-  const checkFortiGuard = document.getElementById("fortiguardFilter").checked
 
   // Validate at least one filter is selected
-  if (!checkLightspeed && !checkFortiGuard) {
+  if (!checkLightspeed) {
     alert("Please select at least one filter to check.")
     return
   }
@@ -44,8 +43,7 @@ async function checkLinks() {
       body: JSON.stringify({
         urls: uniqueDomains,
         filters: {
-          lightspeed: checkLightspeed,
-          fortiguard: checkFortiGuard,
+          lightspeed: checkLightspeed
         },
       }),
     })
@@ -80,13 +78,6 @@ async function checkLinks() {
       `
     }
 
-    if (checkFortiGuard) {
-      tableHeader += `
-          <th>FortiGuard Status</th>
-          <th>FortiGuard Category</th>
-      `
-    }
-
     tableHeader += `
         </tr>
       </thead>
@@ -107,13 +98,6 @@ async function checkLinks() {
         `
         }
 
-        if (checkFortiGuard) {
-          row += `
-          <td class="${domain.fortiguard.status === "Unblocked" ? "unblocked" : "blocked"}">${domain.fortiguard.status}</td>
-          <td>${domain.fortiguard.category || "N/A"}</td>
-        `
-        }
-
         row += `
         </tr>
       `
@@ -130,16 +114,12 @@ async function checkLinks() {
 
     // Show/hide copy buttons based on selected filters
     document.getElementById("copyLightspeedUnblocked").style.display = checkLightspeed ? "flex" : "none"
-    document.getElementById("copyFortiguardUnblocked").style.display = checkFortiGuard ? "flex" : "none"
 
     // Add event listeners for the copy buttons
     document.getElementById("copyLightspeedUnblocked").addEventListener("click", () => {
       copyUnblockedDomains(data.domains, "lightspeed")
     })
 
-    document.getElementById("copyFortiguardUnblocked").addEventListener("click", () => {
-      copyUnblockedDomains(data.domains, "fortiguard")
-    })
   } catch (error) {
     resultDiv.innerHTML = "Error checking links. Please try again."
     console.error("Error fetching data:", error)
