@@ -122,4 +122,4 @@ app.post("/check-links", async (req, res) => {
         category: lightspeedData.categoryName,
       };
     } catch (err) {
-      console.error(`Lightspeed error for ${rootDomain
+      console.error(`Lightspeed error for ${rootDomain}:', err)'
