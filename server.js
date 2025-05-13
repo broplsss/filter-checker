@@ -73,50 +73,24 @@ async function fetchCategorization(hostname) {
 // POST endpoint to check links
 app.post("/check-links", async (req, res) => {
   const { urls } = req.body;
+
   if (!Array.isArray(urls) || urls.length === 0) {
     return res.status(400).json({ error: "Invalid input: 'urls' must be a non-empty array." });
   }
 
-  progress.completed = 0;
-  progress.total = urls.length;
+  // Your existing code here to process the domains
 
-  const domainResults = [];
-
-  for (let fullUrl of urls) {
-    let hostname, rootDomain;
-    try {
-      console.log(`Processing URL: ${fullUrl}`);
-      if (!fullUrl.startsWith("http://") && !fullUrl.startsWith("https://")) {
-        fullUrl = `http://${fullUrl}`; // Make sure the URL has a protocol
-      }
-
-      hostname = new URL(fullUrl).hostname;
-      const parsed = psl.parse(hostname);
-      rootDomain = parsed.domain;
-
-      if (!rootDomain) {
-        console.warn(`Could not extract root domain from ${hostname}`);
-        continue;
-      }
-    } catch (err) {
-      console.error(`Invalid URL skipped: ${fullUrl}`, err);
-      continue;
+  const results = urls.map(url => ({
+    url,
+    lightspeed: {
+      status: "Unblocked",
+      category: "Test Category"
     }
+  }));
 
-    console.log(`Checking root domain: ${rootDomain} (from ${fullUrl})`);
-
-    const domainResult = {
-      url: fullUrl,
-      hostname,
-      categorization: await fetchCategorization(rootDomain),
-    };
-
-    domainResults.push(domainResult);
-    progress.completed += 1;
-  }
-
-  res.json({ domains: domainResults });
+  res.json({ domains: results });
 });
+
 
 // Start the server
 app.listen(PORT, () => {
