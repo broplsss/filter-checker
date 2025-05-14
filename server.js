@@ -160,25 +160,4 @@ app.get("/progress", (req, res) => {
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  app.post("/check-links", async (req, res) => {
-  const { urls } = req.body;
-
-  if (!Array.isArray(urls) || urls.length === 0) {
-    return res.status(400).json({ error: "'urls' must be a non-empty array." });
-  }
-
-  // Logic to handle URLs
-  const results = urls.map(url => ({
-    url,
-    status: "Unblocked",  // Add any additional logic here
-  }));
-
-  res.json({ domains: results });
-});
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
-
 });
